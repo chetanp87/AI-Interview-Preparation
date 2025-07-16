@@ -2,35 +2,68 @@ import React, { useState, useEffect } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 const Practice = () => {
-  const [question, setQuestion] = useState('What is useState in React?');
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(false);
   const [userTyped, setUserTyped] = useState(false);
 
-  const { transcript, resetTranscript, listening } = useSpeechRecognition();
+  const {
+    transcript,
+    resetTranscript,
+    listening,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
 
-  // Sync transcript to answer if user hasn't typed manually
+  // Sync mic transcript to answer box
   useEffect(() => {
     if (!userTyped) {
       setAnswer(transcript);
     }
   }, [transcript, userTyped]);
 
-  const handleSubmit = async () => {
-    setLoading(true);
-
-    const prompt = `You are an interviewer. The question is: "${question}". My answer is: "${answer}". Give feedback.`;
+  const startInterview = async (topic) => {
+    setSelectedTopic(topic);
+    setFeedback('');
+    setQuestion('');
 
     try {
-      const response = await fetch('http://localhost:8080/ai/ask-ai', {
+      const res = await fetch('http://localhost:8080/ai/ask-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ topic }),
       });
 
-      const data = await response.json();
-      setFeedback(data.message);
+      const data = await res.json();
+      setQuestion(data.question);
+    } catch (err) {
+      setQuestion('⚠️ Error loading first question.');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!answer.trim()) return;
+
+    setLoading(true);
+
+    try {
+      const res = await fetch('http://localhost:8080/ai/ask-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: selectedTopic,
+          previousQuestion: question,
+          answer: answer,
+        }),
+      });
+
+      const data = await res.json();
+      setFeedback(data.feedback);
+      setQuestion(data.question);
+      setAnswer('');
+      resetTranscript();
+      setUserTyped(false);
     } catch (err) {
       setFeedback('⚠️ Error getting feedback.');
     }
@@ -43,17 +76,52 @@ const Practice = () => {
     setAnswer(e.target.value);
   };
 
+  const startMic = () => {
+    if (!browserSupportsSpeechRecognition()) {
+      alert('❌ Your browser does not support speech recognition. Use Google Chrome.');
+      return;
+    }
+    setUserTyped(false);
+    resetTranscript();
+    SpeechRecognition.startListening({ continuous: true, language: 'en-IN' });
+  };
+
+  const stopMic = () => {
+    SpeechRecognition.stopListening();
+  };
+
+  const topics = ['MERN', 'Java', 'C/C++'];
+
+  if (!selectedTopic) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white">
+        <h2 className="text-2xl font-bold mb-6 text-lime-300">Select Interview Topic</h2>
+        <div className="space-x-4">
+          {topics.map((topic) => (
+            <button
+              key={topic}
+              onClick={() => startInterview(topic)}
+              className="bg-lime-500 px-6 py-3 text-black font-semibold rounded hover:bg-lime-400"
+            >
+              {topic}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen px-6 py-12 bg-gradient-to-b from-black via-green-900 to-black text-white flex flex-col items-center">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-lime-300">AI Interview Practice</h1>
+      <h1 className="text-3xl sm:text-4xl font-bold mb-4 text-lime-300">
+        AI Interview Practice - {selectedTopic}
+      </h1>
 
       <div className="w-full max-w-3xl bg-gray-900 rounded-xl p-6 space-y-6 shadow-lg">
-        {/* Question */}
         <div className="text-lg sm:text-xl font-semibold text-lime-400">
           Question: <span className="text-white">{question}</span>
         </div>
 
-        {/* Answer Input */}
         <textarea
           value={answer}
           onChange={handleTyping}
@@ -62,16 +130,19 @@ const Practice = () => {
           className="w-full bg-black/50 border border-lime-400 rounded-md p-4 text-base sm:text-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-lime-400"
         />
 
-        {/* Voice & Controls */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
           <button
-            onClick={() => {
-              setUserTyped(false); // enable speech overwrite
-              SpeechRecognition.startListening({ continuous: true, language: 'en-IN' });
-            }}
+            onClick={startMic}
             className="bg-lime-400 text-black px-5 py-2 rounded hover:bg-lime-300 font-semibold"
           >
             🎙️ Start Speaking
+          </button>
+
+          <button
+            onClick={stopMic}
+            className="bg-red-500 text-white px-5 py-2 rounded hover:bg-red-400 font-semibold"
+          >
+            🛑 Stop
           </button>
 
           <button
@@ -94,7 +165,11 @@ const Practice = () => {
           </button>
         </div>
 
-        {/* Feedback */}
+        {/* Mic status */}
+        <div className="text-sm text-lime-200">
+          🎧 Mic Status: {listening ? 'Listening...' : 'Not listening'}
+        </div>
+
         {feedback && (
           <div className="mt-4 p-4 bg-green-950 border border-lime-400 rounded-md text-sm sm:text-base text-lime-200 whitespace-pre-line">
             {feedback}
