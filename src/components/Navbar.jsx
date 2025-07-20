@@ -20,7 +20,7 @@ const NavBar = () => {
     >
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo */}
-        <div className="text-2xl font-bold text-lime-300 italic">AI Interview</div>
+        <div className="text-2xl font-bold text-lime-300 italic">AI Interview prep</div>
 
         {/* Desktop Menu */}
         <ul className="hidden md:flex gap-6 text-lime-200 font-medium text-base">

@@ -8,6 +8,7 @@ const Practice = () => {
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(false);
   const [userTyped, setUserTyped] = useState(false);
+  const [qaHistory, setQaHistory] = useState([]);
 
   const {
     transcript,
@@ -16,7 +17,6 @@ const Practice = () => {
     browserSupportsSpeechRecognition,
   } = useSpeechRecognition();
 
-  // Sync mic transcript to answer box
   useEffect(() => {
     if (!userTyped) {
       setAnswer(transcript);
@@ -27,6 +27,7 @@ const Practice = () => {
     setSelectedTopic(topic);
     setFeedback('');
     setQuestion('');
+    setQaHistory([]);
 
     try {
       const res = await fetch('http://localhost:8080/ai/ask-ai', {
@@ -46,6 +47,9 @@ const Practice = () => {
     if (!answer.trim()) return;
 
     setLoading(true);
+
+    // Add current Q&A to history
+    setQaHistory(prev => [...prev, { question, answer }]);
 
     try {
       const res = await fetch('http://localhost:8080/ai/ask-ai', {
@@ -77,7 +81,7 @@ const Practice = () => {
   };
 
   const startMic = () => {
-    if (!browserSupportsSpeechRecognition()) {
+    if (!browserSupportsSpeechRecognition) {
       alert('❌ Your browser does not support speech recognition. Use Google Chrome.');
       return;
     }
@@ -88,6 +92,17 @@ const Practice = () => {
 
   const stopMic = () => {
     SpeechRecognition.stopListening();
+  };
+
+  const handleEndInterview = () => {
+    setSelectedTopic(null);
+    setQuestion('');
+    setFeedback('');
+    setAnswer('');
+    resetTranscript();
+    setUserTyped(false);
+    setQaHistory([]);
+    stopMic();
   };
 
   const topics = ['MERN', 'Java', 'C/C++'];
@@ -165,7 +180,6 @@ const Practice = () => {
           </button>
         </div>
 
-        {/* Mic status */}
         <div className="text-sm text-lime-200">
           🎧 Mic Status: {listening ? 'Listening...' : 'Not listening'}
         </div>
@@ -175,7 +189,27 @@ const Practice = () => {
             {feedback}
           </div>
         )}
+
+        {/* Interview History */}
+        {qaHistory.length > 0 && (
+          <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-lime-500">
+            <h3 className="text-lime-300 font-bold mb-2">📝 Interview History</h3>
+            {qaHistory.map((entry, index) => (
+              <div key={index} className="mb-3">
+                <p className="text-lime-400 font-semibold">Q{index + 1}: {entry.question}</p>
+                <p className="text-white ml-2">🗣️ {entry.answer}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <button
+        onClick={handleEndInterview}
+        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 mt-4"
+      >
+        ❌ End Interview
+      </button>
     </div>
   );
 };
